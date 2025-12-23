@@ -11,32 +11,34 @@ class EnergySimulator:
             "battery_energy": [],
             "generated_power": [],
             "load_power": [],
-            "battery_soc": []
+            "battery_soc": [],
+            "battery_health": [],
+            "battery_temperature": [],
+            "unmet_load": []
         }
 
     def step(self, biogas_flow, load_power, t):
         p_gen = self.generator.power_output(biogas_flow)
 
-        if p_gen >= load_power:
-            surplus = p_gen - load_power
-            p_charge = surplus
-            p_discharge = 0.0
-        else:
-            deficit = load_power - p_gen
-            p_charge = 0.0
-            p_discharge = deficit
+        deficit = max(0.0, load_power - p_gen)
+        surplus = max(0.0, p_gen - load_power)
 
-        self.battery.step(
-            p_charge=p_charge,
-            p_discharge=p_discharge,
-            dt=self.dt
-        )
+        p_discharge = min(deficit, self.battery.p_d_max)
+        p_charge = min(surplus, self.battery.p_c_max)
+
+        supplied_power = p_gen + p_discharge
+        unmet_load = max(0.0, load_power - supplied_power)
+
+        self.battery.step(p_charge, p_discharge, self.dt)
 
         self.history["time"].append(t)
         self.history["battery_energy"].append(self.battery.energy)
         self.history["battery_soc"].append(self.battery.soc)
+        self.history["battery_health"].append(self.battery.health)
+        self.history["battery_temperature"].append(self.battery.temperature)
         self.history["generated_power"].append(p_gen)
         self.history["load_power"].append(load_power)
+        self.history["unmet_load"].append(unmet_load)
 
     def run(self, biogas_profile, load_profile):
         assert len(biogas_profile) == len(load_profile)
