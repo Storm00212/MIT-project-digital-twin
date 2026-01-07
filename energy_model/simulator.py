@@ -93,3 +93,70 @@ class EnergySimulator:
             )
 
         return self.history
+
+    def run_vectorized(self, biogas_profile, load_profile):
+        """
+        Run the simulation in a vectorized manner using numpy for efficiency.
+
+        Args:
+            biogas_profile (np.ndarray): Array of biogas flow rates (m³/hr).
+            load_profile (np.ndarray): Array of load power demands (kW).
+
+        Returns:
+            dict: Simulation history with numpy arrays.
+        """
+        assert len(biogas_profile) == len(load_profile), "Profiles must have the same length"
+
+        T = len(biogas_profile)
+
+        # Calculate generated power from biogas
+        P_gen = np.array([self.generator.power_output(flow) for flow in biogas_profile])
+
+        # Battery energy limits
+        E_max = self.battery.soc_max * self.battery.capacity
+        E_min = self.battery.soc_min * self.battery.capacity
+        E_init = self.battery.energy
+
+        # Initialize battery energy array
+        E_batt = np.zeros(T)
+        E_batt[0] = E_init
+
+        # Initialize unmet load
+        P_unmet = np.zeros(T)
+
+        # Simulation loop (vectorized where possible)
+        for t in range(1, T):
+            P_net = P_gen[t] - load_profile[t]
+
+            # CASE 1: Excess power → charge battery
+            if P_net > 0:
+                E_charge = P_net * self.dt * self.battery.eta_c
+                E_batt[t] = min(E_batt[t-1] + E_charge, E_max)
+            # CASE 2: Power deficit → discharge battery
+            else:
+                E_required = abs(P_net) * self.dt / self.battery.eta_d
+                E_available = E_batt[t-1] - E_min
+
+                if E_available >= E_required:
+                    E_batt[t] = E_batt[t-1] - E_required
+                else:
+                    E_batt[t] = E_min
+                    unmet_energy = E_required - E_available
+                    P_unmet[t] = unmet_energy / self.dt
+
+        # Update battery SOC
+        soc_batt = E_batt / self.battery.capacity
+
+        # Return history in similar format
+        history = {
+            "time": np.arange(T),
+            "battery_energy": E_batt,
+            "generated_power": P_gen,
+            "load_power": load_profile,
+            "battery_soc": soc_batt,
+            "battery_health": np.full(T, self.battery.health),  # Assuming constant
+            "battery_temperature": np.full(T, self.battery.temperature),  # Assuming constant
+            "unmet_load": P_unmet
+        }
+
+        return history
