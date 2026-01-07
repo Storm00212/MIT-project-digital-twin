@@ -30,26 +30,17 @@ class Battery:
         return self.soc * self.capacity * self.health
 
     def step(self, p_charge, p_discharge, dt):
-        # Adjust efficiencies based on temperature (simplified model)
-        temp_factor = max(0.8, min(1.0, 1 - abs(self.temperature - 25) * 0.01))
-        eta_c_eff = self.eta_c * temp_factor
-        eta_d_eff = self.eta_d * temp_factor
-
+        # Power limits
         p_charge = min(p_charge, self.p_c_max)
         p_discharge = min(p_discharge, self.p_d_max)
 
+        # Energy-availability constraint
+        max_possible_discharge = (self.energy - self.soc_min * self.capacity) * self.eta_d / dt
+        p_discharge = max(0.0, min(p_discharge, max_possible_discharge))
+
         e = self.energy
-        e += eta_c_eff * p_charge * dt
-        e -= (1 / eta_d_eff) * p_discharge * dt
+        e += self.eta_c * p_charge * dt
+        e -= (1 / self.eta_d) * p_discharge * dt
 
-        e = max(self.soc_min * self.capacity * self.health,
-                min(e, self.soc_max * self.capacity * self.health))
-
-        self.soc = e / (self.capacity * self.health)
-
-        # Update health and temperature (simplified)
-        self.health = max(0.5, self.health - self.degradation_rate * (p_charge + p_discharge) * dt)
-        self.temperature += 0.1 * (p_charge + p_discharge) * dt  # Heat up
-        self.temperature = max(0, self.temperature - 0.05 * dt)  # Cool down
-
-        return self.energy
+        self.soc = e / self.capacity
+        return p_charge, p_discharge, self.energy
