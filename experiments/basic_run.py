@@ -17,9 +17,14 @@ load_profile = [1.0]*30
 
 history = sim.run(biogas_profile, load_profile)
 
+plt.figure()
+
 plt.plot(history["battery_energy"], label="Battery Energy (kWh)")
 plt.plot(history["generated_power"], label="Generated Power (kW)")
 plt.plot(history["load_power"], label="Load Power (kW)")
-plt.legend()
+plt.plot(history["unmet_load"], label="Unmet Load (kW)")
+
 plt.xlabel("Time step")
+plt.legend()
+plt.grid(True)
 plt.show()
