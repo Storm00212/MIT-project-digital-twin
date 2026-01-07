@@ -24,12 +24,12 @@ generator = BiogasGenerator()
 sim = EnergySimulator(battery, generator, dt=1.0)
 
 # Define biogas flow profile: 0.8 for 10 steps, 0.3 for 10, 1.0 for 10
-biogas_profile = [0.8]*10 + [0.3]*10 + [1.0]*10
+biogas_profile = np.array([0.8]*10 + [0.3]*10 + [1.0]*10)
 # Constant load of 1.0 kW for 30 steps
-load_profile = [1.0]*30
+load_profile = np.array([1.0]*30)
 
-# Run the simulation
-history = sim.run(biogas_profile, load_profile)
+# Run the simulation using vectorized method
+history = sim.run_vectorized(biogas_profile, load_profile)
 
 # Plot the results
 plt.figure()
