@@ -1,11 +1,23 @@
 import numpy as np
 
 class EnergySimulator:
+    """
+    Simulates energy system with battery and generator, tracking power flows and battery state.
+    """
     def __init__(self, battery, generator, dt=1.0):
+        """
+        Initialize the energy simulator.
+
+        Args:
+            battery: Battery object.
+            generator: Generator object (e.g., BiogasGenerator).
+            dt (float): Time step in hours.
+        """
         self.battery = battery
         self.generator = generator
         self.dt = dt
 
+        # Initialize history dictionary to store simulation data
         self.history = {
             "time": [],
             "battery_energy": [],
@@ -18,23 +30,38 @@ class EnergySimulator:
         }
 
     def step(self, biogas_flow, load_power, t):
+        """
+        Perform one simulation step.
+
+        Args:
+            biogas_flow (float): Biogas flow rate in m³/hr.
+            load_power (float): Load power demand in kW.
+            t (int): Time step index.
+        """
+        # Calculate power generated from biogas
         p_gen = self.generator.power_output(biogas_flow)
 
+        # Determine deficit (load > generation) or surplus (generation > load)
         deficit = max(0.0, load_power - p_gen)
         surplus = max(0.0, p_gen - load_power)
 
+        # Request battery to charge with surplus or discharge for deficit
         p_charge_req = surplus
         p_discharge_req = deficit
 
+        # Battery step: update battery state
         p_charge, p_discharge, _ = self.battery.step(
             p_charge_req,
             p_discharge_req,
             self.dt
         )
 
+        # Total supplied power: generation + battery discharge
         supplied_power = p_gen + p_discharge
+        # Unmet load if supplied < demanded
         unmet_load = max(0.0, load_power - supplied_power)
 
+        # Record data in history
         self.history["time"].append(t)
         self.history["battery_energy"].append(self.battery.energy)
         self.history["battery_soc"].append(self.battery.soc)
@@ -45,8 +72,19 @@ class EnergySimulator:
         self.history["unmet_load"].append(unmet_load)
 
     def run(self, biogas_profile, load_profile):
-        assert len(biogas_profile) == len(load_profile)
+        """
+        Run the simulation over the given profiles.
 
+        Args:
+            biogas_profile (list): List of biogas flow rates.
+            load_profile (list): List of load power demands.
+
+        Returns:
+            dict: Simulation history.
+        """
+        assert len(biogas_profile) == len(load_profile), "Profiles must have the same length"
+
+        # Simulate each time step
         for t in range(len(biogas_profile)):
             self.step(
                 biogas_flow=biogas_profile[t],
