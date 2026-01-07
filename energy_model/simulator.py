@@ -23,13 +23,17 @@ class EnergySimulator:
         deficit = max(0.0, load_power - p_gen)
         surplus = max(0.0, p_gen - load_power)
 
-        p_discharge = min(deficit, self.battery.p_d_max)
-        p_charge = min(surplus, self.battery.p_c_max)
+        p_charge_req = surplus
+        p_discharge_req = deficit
+
+        p_charge, p_discharge, _ = self.battery.step(
+            p_charge_req,
+            p_discharge_req,
+            self.dt
+        )
 
         supplied_power = p_gen + p_discharge
         unmet_load = max(0.0, load_power - supplied_power)
-
-        self.battery.step(p_charge, p_discharge, self.dt)
 
         self.history["time"].append(t)
         self.history["battery_energy"].append(self.battery.energy)
